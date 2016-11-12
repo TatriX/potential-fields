@@ -23,8 +23,8 @@
   :cljsbuild {
               :builds [{:id "potential-fields-demo"
                         :source-paths ["src"]
-                        :figwheel false
-                        :compiler {:optimizations :advanced
+                        :figwheel true
+                        :compiler {:optimizations :none
                                    :main potential-fields.core
                                    :asset-path "js/out"
                                    :output-to "resources/public/js/bundle.js"

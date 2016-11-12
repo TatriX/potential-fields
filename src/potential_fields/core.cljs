@@ -1,6 +1,5 @@
 (ns potential-fields.core
-  (:require [monet.canvas :as canvas]
-            [cljs.pprint :as pprint]))
+  (:require [monet.canvas :as canvas]))
 
 (enable-console-print!)
 
@@ -16,14 +15,12 @@
 
 ;; (defonce monet-canvas (canvas/init canvas-dom "2d"))
 
-(defrecord potential-map [w h fields])
-
 (defrecord potential-field [x y potential gradation])
 
-(def tile-size 16)
+(defonce tile-size 16)
 
 (defn rgba [r g b a]
-  (pprint/cl-format nil "rgba(~d, ~d, ~d, ~d)" r g b a))
+  (str "rgba(" r "," g "," b "," a ")"))
 
 (defn potential-field-value [field x y]
   (let [fx (:x field)
@@ -35,7 +32,10 @@
       (min 0 (round (+ potential (* (/ distance tile-size) (:gradation field))))))))
 
 (defn potential-value [world x y]
-  (reduce + (map #(potential-field-value % x y) (:fields world))))
+  (reduce (fn [potential field]
+            (+ potential (potential-field-value field x y)))
+          0
+          (:fields @world)))
 
 (defn potential-color [world x y]
   (let [potential (potential-value world x y)]
@@ -44,20 +44,21 @@
       (rgba (- potential) 0 0 1))))
 
 (defn draw-map [ctx world]
-  (doseq [x (range 0 (:w world) tile-size)
-          y (range 0 (:h world) tile-size)]
+  (doseq [x (range 0 (:w @world) tile-size)
+          y (range 0 (:h @world) tile-size)]
     (-> ctx
         (canvas/fill-style (potential-color world x y))
         (canvas/fill-rect {:x x :y y :w  tile-size :h tile-size}))))
 
-(defonce world-map (->potential-map 1280 720
-                                [(->potential-field 200 200 -256 64)
-                                 (->potential-field 600 100 256 8)
-                                 (->potential-field 400 300 -256 128)]))
+(defonce world-map (atom {:w 1280
+                          :h 720
+                          :fields [(->potential-field 200 200 -256 64)
+                                   (->potential-field 600 100 256 8)
+                                   (->potential-field 400 300 -256 128)]}))
 
 (defrecord agent [x y speed])
 
-(defonce player (atom (->agent 300 300 10)))
+(defonce player (atom (->agent 300 300 11)))
 
 (defn draw-agent [ctx agent]
   (-> ctx
@@ -89,15 +90,23 @@
 
 
 (defn tick [ctx]
-  ;; (update-agent player 0)
+  (update-agent player 0)
   (draw-map ctx world-map)
   (draw-agent ctx player)
   (js/requestAnimationFrame #(tick ctx)))
 
+(defn on-canvas-click [event]
+  (let [x (.-clientX event)
+        y (.-clientY event)]
+    (swap! world-map update-in [:fields] #(conj % (->potential-field x y -256 128)))
+    (agent-move-to player x y)))
 
 (defn start []
+  (.addEventListener canvas-dom "click" on-canvas-click)
   (let [ctx (canvas/get-context canvas-dom "2d")]
     (tick ctx)))
+
+(start)
 
 ;; (defn start []
 ;;   (canvas/restart monet-canvas)
@@ -106,5 +115,3 @@
 ;;   (canvas/add-entity monet-canvas :player
 ;;                      (canvas/entity player #'update-agent draw-agent))
 ;;   (reagent/render [app] (js/document.getElementById "main")))
-
-(start)
